@@ -1,0 +1,45 @@
+# Proposed libraries.yaml entry for HPX on Compiler Explorer
+# This goes in: compiler-explorer/infra -> libraries/c++/hpx.yaml
+#
+# PR #2: compiler-explorer/infra
+
+hpx:
+  build_type: cmake
+  depends:
+    - libraries/c++/boost_bin 1.86.0
+  extra_cmake_arg:
+    - -DCMAKE_BUILD_TYPE=Release
+    - -DHPX_WITH_TESTS=OFF
+    - -DHPX_WITH_EXAMPLES=OFF
+    - -DHPX_WITH_STATIC_LINKING=ON       # Bug #2 fix: static for nsjail
+    - -DHPX_WITH_DISTRIBUTED_RUNTIME=OFF  # sandbox: no network
+    - -DHPX_WITH_NETWORKING=OFF           # sandbox: no sockets
+    - -DHPX_WITH_FETCH_ASIO=ON            # header-only download
+    - -DHPX_WITH_MALLOC=system            # no jemalloc/tcmalloc
+    - -DHPX_WITH_CXX_STANDARD=20
+    - -DBOOST_ROOT=%DEP0%                 # Bug #1 fix: auto Boost path
+  lib_type: static
+  make_utility: ninja                     # ~2x faster than Make
+  package_install: true
+  repo: STEllAR-GROUP/hpx
+  skip_compilers:                         # Bug #4 fix
+    - g41          # GCC 4.x-9.x (all point releases)
+    - g51
+    - g91
+    - g101         # GCC 10.x-11.x (partial C++20, ICEs)
+    - g111
+    - clang400     # Clang 4.x-14.x (incomplete C++20)
+    - clang1401
+    # ... all point releases (g42,g52,...,g115,clang1400,...)
+    # CE matches IDs exactly (not regex); full list from
+    # /api/compilers, assembled in W2.
+  staticliblink:
+    - hpx_wrap
+    - hpx_init
+    - hpx                                  # libs/CMakeLists.txt:80 (hpx_full)
+    - hpx_core
+  target_prefix: v
+  targets:
+    - 2.0.0                               # Bug #3 fix
+    - 1.11.0
+  type: github

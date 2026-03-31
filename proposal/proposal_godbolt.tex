@@ -1,0 +1,1438 @@
+\documentclass[11pt, a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{array}
+\usepackage{float}
+\usepackage{pgfgantt}
+\usepackage{caption}
+\usepackage{parskip}
+\usepackage{wrapfig}
+
+% ── Text overflow fix ─────────────────────────────────────────────────────────
+\emergencystretch=5em
+
+% ── HPX / STE||AR brand palette (extracted from HPX_STELLAR_blue.png) ─────────
+% Dominant logo colour: deep navy #0A145A
+\definecolor{hpxnavy}{RGB}{10,20,90}       % logo primary — section rules, headers
+\definecolor{hpxmid}{RGB}{0,70,180}        % mid-blue — hyperlinks
+\definecolor{hpxfaint}{RGB}{232,237,248}   % pale brand blue — title background
+% Alias so existing \color{linkblue} usage stays consistent
+\colorlet{linkblue}{hpxmid}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codecomment}{RGB}{100,100,100}
+\definecolor{merged}{RGB}{30,130,60}
+\definecolor{openpr}{RGB}{200,90,0}
+\definecolor{rowgray}{RGB}{240,240,240}
+\definecolor{bugred}{RGB}{180,30,30}
+\definecolor{diffrem}{RGB}{180,30,30}
+\definecolor{diffadd}{RGB}{30,130,60}
+
+% ── Hyperref ──────────────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true, linkcolor=linkblue, urlcolor=linkblue, citecolor=linkblue,
+  pdftitle={GSoC 2026 -- Add HPX to Compiler Explorer},
+  pdfauthor={Jatin Sharma},
+}
+
+% ── Section formatting ────────────────────────────────────────────────────────
+\titleformat{\section}{\Large\bfseries\color{hpxnavy}}{}{0em}{}{\color{hpxnavy}\hrule height 1.2pt}
+\titleformat{\subsection}{\large\bfseries\color{hpxnavy}}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{hpxnavy}}{}{0em}{}
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+
+% ── Header / Footer ──────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small\color{hpxnavy}\bfseries GSoC 2026 | Add HPX to Compiler Explorer}
+\rhead{}
+\cfoot{\small\color{hpxnavy}\thepage}
+\renewcommand{\headrulewidth}{1pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{hpxnavy}\leaders\hrule height \headrulewidth\hfill}}
+
+% ── Code listings ─────────────────────────────────────────────────────────────
+\lstdefinestyle{code}{
+  backgroundcolor=\color{codebg}, basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries, commentstyle=\color{codecomment}\itshape,
+  breaklines=true, frame=single, framerule=0.4pt,
+  rulecolor=\color{black!30}, numbers=left,
+  numberstyle=\tiny\color{gray}, numbersep=5pt,
+  xleftmargin=14pt, aboveskip=8pt, belowskip=8pt,
+  showstringspaces=false,
+}
+\lstdefinestyle{diff}{
+  backgroundcolor=\color{codebg}, basicstyle=\ttfamily\small,
+  breaklines=true, frame=single, framerule=0.4pt,
+  rulecolor=\color{black!30},
+  xleftmargin=6pt, aboveskip=8pt, belowskip=8pt,
+  showstringspaces=false,
+}
+\lstset{style=code}
+
+% ── Helpers ───────────────────────────────────────────────────────────────────
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\pr}[1]{\href{https://github.com/STEllAR-GROUP/hpx/pull/#1}{\texttt{\##1}}}
+\newcommand{\cefile}[1]{\texttt{#1}}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── Title page ───────────────────────────────────────────────────────────────
+{\color{hpxnavy}\rule{\linewidth}{2.5pt}}
+\vspace{2pt}
+\begin{center}
+  % HPX + STE||AR Group combined logo
+  \includegraphics[height=2.0cm,keepaspectratio]{hpx_stellar_logo}\\[10pt]
+  {\color{hpxnavy}\rule{0.55\linewidth}{0.6pt}}\\[8pt]
+  {\LARGE\bfseries\color{hpxnavy} Google Summer of Code 2026}\\[4pt]
+  {\Large\bfseries\color{black} Add HPX to Compiler Explorer (godbolt.org)}\\[6pt]
+  {\normalsize\color{hpxnavy}\textsc{STEllAR-GROUP / HPX}}\\[4pt]
+  {\normalsize Jatin Sharma \quad{\color{hpxnavy}$\cdot$}\quad Medium project (175~hours)}
+\end{center}
+\vspace{2pt}
+{\color{hpxnavy}\rule{\linewidth}{2.5pt}}
+\vspace{10pt}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Abstract}
+
+Compiler Explorer (\url{https://godbolt.org/}) is a widely popular web-based
+application which provides easy access to multiple C++ compilers and
+environments, allowing users to write, test, and share anything from small
+C++ scripts to large CMake-based projects quickly.  Given its versatility, we
+believe it would be convenient for HPX to have an integration with Compiler
+Explorer.  A preliminary idea is that we will maintain our own fork of
+Compiler Explorer (which is open source) and experiment with the HPX
+integration locally before making the integration public through a Pull
+Request to Compiler Explorer.  The result could even be constrained to an
+environment somewhat similar to Compiler Explorer just for HPX, where
+prospective users would experiment with quick HPX scripts before downloading,
+building, and running the whole library.
+
+I have already \textbf{built a working proof of concept}
+(HPX~2.0.0 compiling and executing inside a local CE instance) and
+\textbf{published the fix} at
+\href{https://github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}%
+{github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}.
+This proposal converts that validated prototype into three
+upstream Pull Requests across the HPX and CE repositories, giving 3.5~million
+users the ability to try HPX parallelism in seconds, replacing a 30-minute
+local build with a single checkbox.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Personal Details}
+
+\begin{wrapfigure}{r}{3.5cm}
+  \vspace{-20pt}
+  \includegraphics[width=3.3cm]{jatin_photo}
+  \vspace{-15pt}
+\end{wrapfigure}
+
+\begin{tabular}{@{}ll}
+  \textbf{Name}        & Jatin Sharma \\
+  \textbf{University}  & Indian Institute of Technology (BHU), Varanasi \\
+  \textbf{Programme}   & Integrated Dual Degree (Graduating 2027) \\
+  \textbf{Email}       & \href{mailto:jatin.sharma.cd.civ22@itbhu.ac.in}%
+                               {jatin.sharma.cd.civ22@itbhu.ac.in} \\
+  \textbf{GitHub}      & \href{https://github.com/GitMasterJatin}%
+                               {github.com/GitMasterJatin} \\
+  \textbf{LinkedIn}    & \href{https://www.linkedin.com/in/jatin-sharma-70a26825b/}%
+                               {linkedin.com/in/jatin-sharma-70a26825b} \\
+  \textbf{Website}     & \href{https://www.sharmajatin.com}{www.sharmajatin.com} \\
+  \textbf{Phone}       & (+91)\,9996499472 \\
+  \textbf{Project}     & Medium, 175 hours \\
+  \textbf{Timezone}    & IST (UTC+5:30) \\
+\end{tabular}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Background Information}
+
+\subsection*{Education}
+
+Integrated Dual Degree at \textbf{IIT~(BHU), Varanasi} (graduating 2027).
+Core coursework directly relevant to this project:
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \textbf{Data Structures \& Algorithms:} complexity analysis,
+        graph algorithms, dynamic programming.
+  \item \textbf{Operating Systems:} process scheduling, memory management,
+        IPC, cgroups, namespaces (relevant to \code{nsjail}).
+  \item \textbf{Computer Architecture:} cache hierarchies, NUMA topology,
+        instruction-level parallelism (relevant to HPX's hwloc integration).
+  \item \textbf{Parallel Computing:} shared-memory models, task
+        decomposition, synchronisation primitives (relevant to HPX's
+        work-stealing scheduler and thread pools).
+\end{itemize}
+
+\subsection*{Programming Background}
+
+\textbf{Software Development Intern, Fiverse}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item Built a full-stack investor--company matching platform with Nginx
+        reverse proxy and 15+ REST routes in Node.js/Express, the same
+        stack powering CE's \cefile{base-compiler.ts} and
+        \cefile{options-handler.ts}.
+\end{itemize}
+
+\textbf{Order Execution \& Management System (C++)}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item Low-latency order placement with multithreading, async HTTP,
+        and thread-safe data structures. Complex C++ library integration
+        under tight runtime constraints that mirrors HPX's behaviour inside
+        CE's 10-second \code{nsjail} sandbox.
+\end{itemize}
+
+\textbf{SyncCanvas: Real-Time Collaborative Drawing}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item WebSocket-based multi-user sessions in a TypeScript monorepo
+        (Turborepo/pnpm), a structure that mirrors CE's own monorepo.
+        CI/CD pipeline experience maps directly to CE's nightly library
+        builds.
+\end{itemize}
+
+\subsection*{Interest in HPX}
+
+HPX implements the complete C++ standard parallel algorithm suite
+(\code{hpx::for\_each}, \code{hpx::transform\_reduce}, \code{hpx::sort})
+and extends it with futures, continuations, and a work-stealing runtime.
+Code written with \code{hpx::execution::par} is structurally identical to
+\code{std::execution::par}, making HPX the ideal teaching and prototyping tool
+for modern C++ parallelism.
+
+My motivation is concrete: every time I wanted to show a classmate that
+\code{hpx::transform\_reduce(par, ...)} outperforms the sequential version,
+I had to walk them through a 30-minute build instead of sharing a godbolt link.
+To prove the fix is feasible, I built HPX~2.0.0 inside a local CE instance
+and validated all three workflows: assembly inspection, compilation, and
+execution (Figures~\ref{fig:ce-lib}--\ref{fig:ce-asm}).
+Under the mentorship of \textbf{Hartmut Kaiser} and \textbf{Giannis
+Gonidelis}, this integration will follow STE\texttt{||}AR Group's
+contribution standards and CE's library addition guidelines.
+
+\subsection*{Contributions to HPX}
+
+Ten merged PRs and one open PR across bug fixes, CMake modernisation,
+scheduler performance, and API cleanup:
+
+\begin{table}[!htbp]
+\centering\small
+\begin{tabular}{@{}rp{6cm}cp{5cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Pull Request} & \textbf{Status}
+  & \textbf{Skill $\to$ This Project} \\
+\midrule
+\rowcolor{rowgray}
+1  & Fix heap corruption in \code{partial\_sort} filter \pr{7051}
+   & \textcolor{merged}{\bfseries M}
+   & Valgrind/ASan diagnostics $\to$ debugging compiler-specific build failures \\
+2  & cmake: remove \code{CXX20\_STD\_RANGES\_ITER\_SWAP} test \pr{7032}
+   & \textcolor{merged}{\bfseries M}
+   & Obsolete feature-test removal $\to$ writing \code{skip\_compilers} regex \\
+\rowcolor{rowgray}
+3  & Fix numa allocator test \pr{7027}
+   & \textcolor{merged}{\bfseries M}
+   & NUMA/hwloc understanding $\to$ hwloc fallback strategy on CE nodes \\
+4  & Fix heap corruption in \code{sort\_thread} partitioning \pr{7018}
+   & \textcolor{merged}{\bfseries M}
+   & Multi-threaded correctness $\to$ validating HPX thread pool in sandbox \\
+\rowcolor{rowgray}
+5  & cmake: remove \code{CXX20\_SOURCE\_LOCATION} test \pr{6996}
+   & \textcolor{merged}{\bfseries M}
+   & CMake feature detection $\to$ preset design for \code{godbolt-minimal} \\
+6  & cmake: remove \code{CXX20\_STD\_DEFAULT\_SENTINEL} test \pr{6977}
+   & \textcolor{merged}{\bfseries M}
+   & HPX CI matrix knowledge $\to$ compiler compatibility matrix \\
+\rowcolor{rowgray}
+7  & cmake: remove \code{CXX20\_STD\_BIT\_CAST} test \pr{6976}
+   & \textcolor{merged}{\bfseries M}
+   & CMake cache variables $\to$ \code{libraries.yaml} flag design \\
+8  & Convert \code{message\_buffer\_append\_state} to enum class \pr{6923}
+   & \textcolor{merged}{\bfseries M}
+   & Code modernisation $\to$ C++20-clean example code for CE \\
+\rowcolor{rowgray}
+9  & Add subtraction tests for \code{gid\_type} \pr{6913}
+   & \textcolor{merged}{\bfseries M}
+   & Unit testing distributed primitives $\to$ E2E pipeline testing \\
+10 & Removed incomplete line in README \pr{6898}
+   & \textcolor{merged}{\bfseries M}
+   & Documentation quality $\to$ maintenance guide + blog post \\
+\rowcolor{rowgray}
+11 & Improve SPSC queue in work-requesting scheduler \pr{7114}
+   & \textcolor{openpr}{\bfseries O}
+   & Scheduler internals $\to$ understanding runtime init overhead \\
+\bottomrule
+\end{tabular}
+\caption{HPX contributions. M = Merged, O = Open. Right column maps each
+  PR's demonstrated skill to a specific task in this project.}
+\end{table}
+
+\subsection*{Open-Source Projects}
+
+\href{https://github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}%
+{\textbf{HPX $\times$ Compiler Explorer: Proof of Concept}} | local CE
+instance with HPX~2.0.0 integration, build scripts, example programs, and
+API smoke tests. \textbf{Directly demonstrates this proposal's feasibility.}
+
+\href{https://github.com/GitMasterJatin/Parallel-matrix-multiplication-implemented-in-HPX}%
+{Parallel matrix multiplication in HPX}, includes CMake build file as
+required by the STE\texttt{||}AR submission template.
+
+\subsection*{Technical Skills and Development Environment}
+
+I possess advanced skills in:
+\begin{itemize}[leftmargin=2em, itemsep=4pt]
+  \item \textbf{C++:} 3+ years with Modern C++ (C++17/20), including lambdas,
+        smart pointers, templates, concurrency, and template metaprogramming.
+
+  \item \textbf{Python:} 3+ years of experience in scientific computing,
+        scripting, CPython internals, and async/await.
+
+  \item \textbf{Parallel Computing:} Experience with multithreading
+        (\code{pthreads}, \code{std::thread}) and MPI, which complements
+        HPX's task-based asynchronous model.
+
+  \item \textbf{Boost Libraries:} Proficient with Boost.Asio, Boost.Thread,
+        and related components.
+
+  \item \textbf{Tools:} Skilled in Git/GitHub workflows, CMake (with
+        FetchContent/ExternalProject), Linux, and debugging (gdb, Valgrind).
+\end{itemize}
+
+My environment features VS~Code with clangd and Cursor for AI-assisted
+coding.  I maintain a reproducible setup with HPX built from source.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Project Proposal}
+
+% ── Problem ───────────────────────────────────────────────────────────────────
+\subsection*{Problem Description}
+
+Compiler Explorer (\url{https://godbolt.org/}) serves 3.5~million monthly
+users with access to 40+ C++ compilers and 130+ libraries.  It is the de
+facto tool for sharing C++ snippets, comparing compiler output, and
+benchmarking library performance.  Comparable parallelism libraries enjoy
+first-class CE support:
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lccX@{}}
+\toprule
+\textbf{Library} & \textbf{CE Status} & \textbf{Versions}
+  & \textbf{Build Complexity} \\
+\midrule
+\rowcolor{rowgray}
+Kokkos   & \textcolor{merged}{Working} & 4.0--5.0 (multiple versions)
+  & Static, CMake, FetchContent deps \\
+Catch2   & \textcolor{merged}{Working} & 3.x, 2.x & Header-only \\
+\rowcolor{rowgray}
+fmt      & \textcolor{merged}{Working} & 10.x--8.x & Light CMake \\
+TBB      & \textcolor{merged}{Working} & 2021.x  & System install \\
+\rowcolor{rowgray}
+\textbf{HPX} & \textcolor{red}{\bfseries Broken} & 1.11.0 only
+  & \textbf{3 deps, custom CMake, dynamic linking} \\
+\bottomrule
+\end{tabularx}
+% Kokkos is the closest analogue: multiple working versions with static linking.
+  % [VERIFY: check current Kokkos entry in CE before submission]
+\end{table}
+
+Today, trying HPX requires cloning the repository, installing Boost ($\geq$1.71),
+hwloc, and Asio, configuring CMake, and building for 10--30 minutes.  The
+barrier is enormous for a newcomer who wants to see HPX parallelism in action.
+
+% ── Root Cause Analysis ──────────────────────────────────────────────────────
+\subsection*{Root Cause Analysis: Why HPX Is Broken on CE}
+
+An HPX entry already exists in CE's production configuration.  After auditing
+\cefile{c++.amazon.properties} (lines~5759--5767) and tracing through CE's
+build pipeline (\cefile{library\_builder.py}), I identified \textbf{six root
+causes}.  The current broken entry:
+
+% [GROUNDED: compiler-explorer/etc/config/c++.amazon.properties:5759-5767]
+\begin{lstlisting}[style=diff, caption={Current broken HPX entry (c++.amazon.properties:5759--5767)}, label=lst:broken]
+libs.hpx.name=HPX
+libs.hpx.versions=v1110
+libs.hpx.url=https://github.com/STEllAR-GROUP/hpx
+libs.hpx.description=The C++ Standard Library for Concurrency and Parallelism
+libs.hpx.packagedheaders=true
+libs.hpx.versions.v1110.version=1.11.0
+libs.hpx.versions.v1110.path=/app/hpx/hwloc_installed/include:/opt/compiler-explorer/libs/boost_1_84_0
+libs.hpx.versions.v1110.libpath=/app/hpx/hwloc_installed/lib
+libs.hpx.versions.v1110.liblink=hpx_wrap:hpx_init:hpx:hpx_core:hwloc:dl:rt
+\end{lstlisting}
+
+\subsubsection*{Bug \#1: Hardcoded Boost Path}
+
+\textbf{What users see:} \code{fatal error: boost/version.hpp: No such file or directory}.
+
+\textbf{Root cause:} Line~5765 references
+\code{/opt/compiler-explorer/libs/boost\_1\_84\_0}.  When CE updated to
+Boost~1.86.0, the path became stale.  The entry should use \code{\%DEP0\%}
+variable interpolation. CE's \cefile{library\_builder.py} calls
+\code{expand\_make\_arg()} to replace \code{\%DEP0\%} with the resolved
+Boost path at build time.
+
+% [GROUNDED: cmake/HPX_SetupBoost.cmake:39 — Boost_MINIMUM_VERSION = 1.71]
+\textbf{Fix:} In \code{libraries.yaml}: add
+\code{depends: [libraries/c++/boost\_bin 1.86.0]} and use
+\code{-DBOOST\_ROOT=\%DEP0\%}.  HPX requires Boost~$\geq$1.71
+(\cefile{cmake/HPX\_SetupBoost.cmake:39}); CE ships 1.86.0.
+
+\subsubsection*{Bug \#2: Dynamic Linking in a Static-Only Sandbox}
+
+\textbf{What users see:}
+\code{error while loading shared libraries: libhpx\_core.so: cannot open}.
+
+\textbf{Root cause:} The entry uses \code{liblink} (shared linking).
+CE's \code{nsjail} sandbox (\cefile{etc/nsjail/user-execution.cfg}) mounts
+\code{/opt/compiler-explorer} read-only and does not augment
+\code{LD\_LIBRARY\_PATH} for HPX's \code{.so} files.  All successfully
+integrated compiled libraries (Kokkos, Abseil, re2) use \code{staticliblink}.
+
+\textbf{Fix:} \code{lib\_type: static} in YAML; \code{staticliblink} in
+properties; \code{-DHPX\_WITH\_STATIC\_LINKING=ON} in CMake args.
+
+\subsubsection*{Bug \#3: Only v1.11.0, Outdated Target}
+
+\textbf{What users see:} Even if linking worked, v1.11.0 lacks the
+\code{godbolt-minimal} CMake preset and \cefile{sandbox.hpp}.
+
+% [GROUNDED: CMakeLists.txt:69-71 — HPX_VERSION = 2.0.0]
+\textbf{Fix:} Target v2.0.0 (current release, per \cefile{CMakeLists.txt:69--71})
+as primary; retain v1.11.0 as fallback.
+
+\subsubsection*{Bug \#4: No \code{skip\_compilers}}
+
+\textbf{What users see:} Nightly builds attempted on GCC~4.x / Clang~3.x
+(no C++17, let alone C++20), wasting build capacity.
+
+% [GROUNDED: .github/workflows/ — CI uses Clang 20, GCC 11+]
+\textbf{Fix:} \code{skip\_compilers} listing all CE compiler IDs for
+GCC~$\leq$11 and Clang~$\leq$14, e.g.\ \code{g101}, \code{g111},
+\code{clang1400}.  CE's build system matches IDs exactly (not regex).
+Derived from HPX's CI matrix (Clang~20, GCC~12+ for reliable C++20).
+The full list will be refined in W2 against CE's live compiler inventory.
+
+\subsubsection*{Bug \#5: No Default Example}
+
+\textbf{What users see:} Empty editor.  No indication that
+\code{hpx\_main.hpp} is required for runtime initialisation.
+
+\textbf{Fix:} \code{example=hpx-sandbox} in properties, pointing to a
+\code{transform\_reduce} example with \code{sandbox.hpp} benchmarking.
+
+\subsubsection*{Bug \#6: \code{sandbox.hpp} Undiscoverable}
+
+% [GROUNDED: libs/full/include/include/hpx/experimental/sandbox.hpp]
+\textbf{What users see:} HPX ships a CE-specific header
+(\cefile{libs/full/include/include/hpx/experimental/sandbox.hpp}%
+\footnote{The doubled \code{include/include} is HPX's actual directory
+structure: the outer \code{include/} is the CMake install-tree source
+and the inner \code{include/} mirrors the public header prefix.}) with
+environment introspection, benchmarking, and scaling telemetry, but
+no one knows it exists.
+
+\textbf{Fix:} The default example (Bug~\#5) will \code{\#include
+<hpx/experimental/sandbox.hpp>}.
+
+% ── Proposed Solution ─────────────────────────────────────────────────────────
+\subsection*{Proposed Solution}
+
+Following the project description, \textit{``we will maintain our own fork of
+Compiler Explorer and experiment with the HPX integration locally before making
+the integration public through a Pull Request''}, and under the guidance of
+mentors \textbf{Hartmut Kaiser} and \textbf{Giannis Gonidelis}, I propose a
+\textbf{three-repository, phased integration}:
+
+\begin{description}[leftmargin=1.5em, itemsep=3pt]
+  \item[PR\,\#1: \code{STEllAR-GROUP/hpx}]
+    Refine the \code{godbolt-minimal} CMake preset (already in
+    \cefile{CMakePresets.json}), improve \code{sandbox.hpp}, add integration
+    documentation (\cefile{CONTRIBUTING\_CE.md}).
+
+  \item[PR\,\#2: \code{compiler-explorer/infra}]
+    Fix \code{libraries.yaml}: static linking, \code{\%DEP0\%} for Boost,
+    v2.0.0 target, \code{skip\_compilers}, Ninja, \code{FETCH\_ASIO}.
+
+  \item[PR\,\#3: \code{compiler-explorer/compiler-explorer}]
+    Add \code{c++.amazon.properties} entries with correct metadata, link
+    flags, and default example.
+\end{description}
+
+\textbf{Fork strategy.}
+All development happens on a personal fork of \code{compiler-explorer/infra}
+and \code{compiler-explorer/compiler-explorer}; the fork carries only the
+HPX-specific YAML entry, properties additions, and default example; no
+modifications to CE core code.
+The fork is rebased onto CE \code{main} weekly (or before each draft PR
+update) to prevent drift.
+If upstream review extends beyond GSoC, the fork remains a
+self-contained, deployable fallback that STE\texttt{||}AR Group can host
+as an HPX-branded instance with a single \code{git clone}.
+
+Each PR is self-contained.  Draft PRs open in Week~5 for early CE maintainer
+feedback, providing 5+ weeks of review buffer before final evaluation.
+
+\textbf{Upstream PR vs.\ HPX-branded instance.}
+The project description mentions two approaches: integrating HPX into
+the public CE instance and maintaining an HPX-branded fork.  The primary
+deliverable is the upstream PR path (PR\,\#1--\#3 above), because it
+reaches CE's full 3.5~million user base with zero maintenance overhead
+for STE\texttt{||}AR Group.  The HPX-branded instance, with extended
+timeouts, curated examples, and potential task-graph visualisation, is
+a stretch goal (Section~``Stretch goals'').  If upstream PRs stall in
+review, the fork doubles as a working fallback that STE\texttt{||}AR
+Group can host independently.
+
+\subsection*{Deliverables with Acceptance Criteria}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}clXl@{}}
+\toprule
+\textbf{ID} & \textbf{Deliverable} & \textbf{Acceptance Criterion}
+  & \textbf{Repo} \\
+\midrule
+\rowcolor{rowgray}
+D1 & Fixed \code{libraries.yaml} &
+  HPX v2.0.0 builds on GCC~\{12,14\} and Clang~\{17,20\} in $<$600\,s;
+  \code{conan export-pkg} produces valid static \code{.a} files.
+  & CE infra \\
+D2 & Properties file &
+  \code{c++.amazon.properties} entries pass CE's property linter;
+  HPX appears in library dropdown with correct metadata.
+  & CE main \\
+\rowcolor{rowgray}
+D3 & Default example &
+  Example auto-loads when HPX is selected; compiles on all
+  supported compilers; execution output includes
+  \code{sandbox::benchmark} results.
+  & CE main \\
+D4 & Updated CMake preset &
+  \code{cmake --preset godbolt-minimal} succeeds with GCC~14 and
+  Clang~20; produces \code{libhpx.a}, \code{libhpx\_core.a},
+  \code{libhpx\_init.a}, \code{libhpx\_wrap.a}.
+  File: \cefile{CMakePresets.json}.
+  & HPX \\
+\rowcolor{rowgray}
+D5 & Compiler matrix &
+  Spreadsheet covering GCC~10--15 and Clang~15--20 with build
+  status, binary size, and build time for each.
+  & (PR attach) \\
+D6 & Three upstream PRs &
+  PR\,\#1 merged into HPX; PR\,\#2 and PR\,\#3 submitted to CE
+  with build logs for $\geq$8 compilers.
+  & all three \\
+\rowcolor{rowgray}
+D7 & Documentation &
+  Maintenance guide (\cefile{CONTRIBUTING\_CE.md} in HPX),
+  blog post published, CE integration walkthrough.
+  & HPX \\
+\bottomrule
+\end{tabularx}
+\caption{Deliverables with falsifiable acceptance criteria and named
+  upstream repositories.}
+\end{table}
+
+% ── Proof of Concept ──────────────────────────────────────────────────────────
+\subsection*{Proof of Concept: Local Validation}
+
+To demonstrate feasibility \textbf{before writing this proposal}, I built and
+validated a complete local integration.  The PoC is published at:
+\begin{center}
+\url{https://github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}
+\end{center}
+
+\subsubsection*{Setup}
+
+HPX~2.0.0 was built from source using the \code{godbolt-minimal} CMake
+preset flags (Ninja, \code{Release}, \code{FETCH\_ASIO=ON},
+\code{MALLOC=system}), with shared linking for macOS local development.
+The production \code{libraries.yaml} (Listing~2) encodes these same
+flags with \code{STATIC\_LINKING=ON} for CE's sandbox.
+A local \code{c++.local.properties} registered HPX with CE's frontend
+(include/lib paths, \code{staticliblink} order,
+\code{-DHPX\_APPLICATION\_EXPORTS}, and the macOS entry-point flag).
+The production properties file (Listing~5) is derived from this PoC
+configuration with Linux-specific adjustments.
+
+% [GROUNDED: wrap/src/hpx_wrap.cpp:66-74 (macOS), 131-148 (Linux)]
+\noindent\textit{Platform note:}
+The macOS PoC uses \code{-Wl,-e,\_initialize\_main}; the production Linux
+CE configuration (Listing~5) uses \code{-Wl,-wrap=main}.  Both invoke HPX's
+entry-point wrapper (\cefile{wrap/src/hpx\_wrap.cpp}): on Linux,
+\code{\_\_wrap\_main()} intercepts \code{main()} via the GNU linker's
+\code{-wrap} mechanism (line~136); on macOS, \code{initialize\_main()} is
+set as the binary entry point via \code{-e} (line~66).  The production CE
+entry uses only the Linux flag.
+
+% [FIX 15: Non-Obvious Issues promoted and moved before Validation Results]
+\subsection*{Non-Obvious Issues Discovered During PoC}
+
+Three non-obvious bugs surfaced that are invisible from reading
+documentation alone:
+
+\begin{enumerate}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{Boost headers on include path:} HPX headers transitively
+        include \code{<boost/version.hpp>}.  CE must add Boost's include
+        directory alongside HPX's.  The \code{\%DEP0\%} mechanism handles
+        this in production; for the PoC, I added \code{/opt/homebrew/include}.
+
+  \item \textbf{\code{hpx\_main.hpp} entry point wrapping:} HPX's
+        zero-boilerplate mode requires the linker to wrap \code{main()}.
+        Linux: \code{-Wl,-wrap=main}.  macOS:
+        \code{-Wl,-e,\_initialize\_main}.  Without this flag:
+        \code{Attempting to use hpx\_main.hpp functionality without
+        linking to libhpx\_wrap}.
+
+  % [GROUNDED: libs/CMakeLists.txt:80 (hpx_full → libhpx), :93 (hpx_full→hpx_core), :152 (hpx INTERFACE)]
+  \item \textbf{Static library link order:} HPX's libraries have strict
+        dependency order: \code{hpx\_wrap} $\to$ \code{hpx\_init} $\to$
+        \code{hpx} $\to$ \code{hpx\_core}.  The \code{hpx} library
+        (built from the \code{hpx\_full} target, \cefile{libs/CMakeLists.txt:80})
+        contains the full runtime and links to \code{hpx\_core}
+        (\cefile{libs/CMakeLists.txt:93}).  Reversing this order or omitting
+        \code{hpx} produces undefined-reference errors.
+        The \code{staticliblink} property must list them in this sequence.
+\end{enumerate}
+
+\subsection*{Validation Results}
+
+\textbf{Step~1: Library Discovery.}
+The CE library search dialog discovers HPX with its description
+and project website link (Figure~\ref{fig:ce-lib}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\linewidth]{ce_library_search}
+\caption{HPX appears in CE's library search, confirming the properties
+  file is correctly parsed by the frontend.}
+\label{fig:ce-lib}
+\end{figure}
+
+\textbf{Step~2: Compilation and Execution.}
+A \code{hpx::transform\_reduce} example with \code{hpx::execution::par}
+compiled with Apple Clang~17 and executed in $\sim$5.8\,s (dominated by
+HPX runtime bootstrap on a single-machine dev setup).  Output:
+\code{Program returned: 0} / \code{Sum of squares: 204}.
+
+% [GROUNDED: libs/full/init_runtime/src/hpx_init.cpp:46-62,121-161 — DISTRIBUTED_RUNTIME guards]
+\noindent\textit{Bootstrap time on CE:}
+The 5.8\,s figure is on a macOS dev machine with shared libraries and full
+distributed runtime enabled.  On CE's Linux nodes with static linking and
+\code{DISTRIBUTED\_RUNTIME=OFF}, bootstrap drops significantly:
+\cefile{hpx\_init.cpp} guards AGAS client initialisation, parcelport
+registration (\code{init\_all\_parcelports()}, lines~121--122), and
+distributed action/component tables behind
+\code{\#if defined(HPX\_HAVE\_DISTRIBUTED\_RUNTIME)}
+(lines~46--62, 184, 222, 237, 462).
+Skipping these eliminates all network socket setup and symbol-table
+population.  Expected CE bootstrap: $<$500\,ms.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ce_execution}
+\caption{HPX \code{transform\_reduce} compiling and executing.  Left: source
+  with \code{hpx::execution::par}.  Right: output confirming the runtime
+  initialises, runs the parallel algorithm, and shuts down cleanly.}
+\label{fig:ce-exec}
+\end{figure}
+
+\textbf{Step~3: Assembly Inspection.}
+The assembly pane shows ARM64 code with HPX runtime calls
+(\code{hpx::util::hpx\_logger()}, \code{hpx\_console\_logger()}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ce_assembly}
+\caption{Three-pane layout: source (left), ARM64 assembly (centre),
+  execution result (right) with \code{-std=c++20 -DHPX\_APPLICATION\_EXPORTS}.}
+\label{fig:ce-asm}
+\end{figure}
+
+% ── Differentiation ──────────────────────────────────────────────────────────
+\subsection*{Differentiation from Prior Art}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Prior Work} & \textbf{Comparison} \\
+\midrule
+\rowcolor{rowgray}
+Previous HPX CE entry (c.~2023) &
+  Used shared linking (breaks sandbox), hardcoded Boost~1.84 path
+  (breaks on updates), no \code{skip\_compilers}.  Never produced a
+  working build.  My approach fixes all six root causes with static
+  linking, \code{\%DEP0\%} interpolation, and a curated compiler list. \\
+Kokkos integration &
+  Closest analogue: compiled parallelism library, multiple versions, static
+  linking, \code{staticliblink=kokkoscore:kokkoscontainers:kokkossimd}
+  (search for \code{libs.kokkos.name=kokkos} in
+  \cefile{c++.amazon.properties} to locate the current entry).  My design directly
+  follows Kokkos's proven patterns. \\
+\rowcolor{rowgray}
+CE issue tracker &
+  No open issues or PRs for HPX.  The broken entry exists silently:
+  users get a compilation failure with no error message suggesting the
+  library is misconfigured. \\
+\bottomrule
+\end{tabularx}
+\caption{How this proposal differs from prior integration attempts.}
+\end{table}
+
+% ── Technical Approach ────────────────────────────────────────────────────────
+\subsection*{Technical Approach}
+
+\subsubsection*{1. CE Architecture Overview}
+
+CE has four components; this project touches all four:
+
+\begin{enumerate}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{TypeScript frontend:} Monaco editor, library dropdown,
+        compiler selector.  Reads metadata from \cefile{c++.*.properties}.
+  \item \textbf{Node.js backend:} Express server.
+        \cefile{base-compiler.ts} appends \code{-I}, \code{-L}, \code{-l}
+        flags.  \cefile{options-handler.ts} resolves properties.
+  \item \textbf{Execution sandbox:} \code{nsjail} containers (Section~``Sandbox
+        Constraints'').
+  \item \textbf{Build infrastructure:} \cefile{library\_builder.py} (1652 lines)
+        reads \code{libraries.yaml}, builds per-compiler, packages with Conan,
+        uploads to S3.  Hard timeout: 600\,s.
+\end{enumerate}
+
+Figure~\ref{fig:ce-arch} shows how the three PRs map onto CE's
+component architecture.  The rest of this section details each layer.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ce_architecture}
+\caption{End-to-end integration pipeline.  Colour-coded boxes show which
+  PR touches each component: \textbf{PR\,\#1} (HPX repo, blue),
+  \textbf{PR\,\#2} (CE infra, orange), \textbf{PR\,\#3} (CE main, green).
+  Arrows show the data flow from user code to execution output.
+  \textit{(Created with Excalidraw.)}}
+\label{fig:ce-arch}
+\end{figure}
+
+\subsubsection*{2. Build System: \code{libraries.yaml}}
+
+\begin{lstlisting}[language={}, caption={Proposed \texttt{libraries.yaml} entry for HPX}]
+hpx:
+  build_type: cmake
+  depends:
+    - libraries/c++/boost_bin 1.86.0
+  extra_cmake_arg:
+    - -DCMAKE_BUILD_TYPE=Release
+    - -DHPX_WITH_TESTS=OFF
+    - -DHPX_WITH_EXAMPLES=OFF
+    - -DHPX_WITH_STATIC_LINKING=ON       # Bug #2 fix
+    - -DHPX_WITH_DISTRIBUTED_RUNTIME=OFF  # sandbox: no network
+    - -DHPX_WITH_NETWORKING=OFF           # sandbox: no sockets
+    - -DHPX_WITH_FETCH_ASIO=ON            # header-only download
+    - -DHPX_WITH_MALLOC=system            # no jemalloc/tcmalloc
+    - -DHPX_WITH_CXX_STANDARD=20
+    - -DBOOST_ROOT=%DEP0%                 # Bug #1 fix
+  lib_type: static
+  make_utility: ninja                     # ~2x faster than Make
+  package_install: true
+  repo: STEllAR-GROUP/hpx
+  skip_compilers:                         # Bug #4 fix
+    - g41          # GCC 4.x--9.x (all point releases)
+    - g51
+    - g91
+    - g101         # GCC 10.x--11.x (partial C++20, ICEs)
+    - g111
+    - clang400     # Clang 4.x--14.x (incomplete C++20)
+    - clang1401
+    # ... all point releases (g42,g52,...,g115,clang1400,...)
+    # CE matches IDs exactly (not regex); full list from
+    # /api/compilers, assembled in W2.
+  staticliblink:
+    - hpx_wrap
+    - hpx_init
+    - hpx                                  # libs/CMakeLists.txt:80 (hpx_full)
+    - hpx_core
+  target_prefix: v
+  targets:
+    - 2.0.0                               # Bug #3 fix
+    - 1.11.0
+  type: github
+\end{lstlisting}
+
+Design decisions:
+
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{\code{\%DEP0\%}:} \cefile{library\_builder.py}'s
+        \code{expand\_make\_arg()} replaces this with Boost's resolved
+        install path.  Automatic adaptation when CE bumps Boost.
+
+  \item \textbf{Static linking:} Mandatory for \code{nsjail}.  Kokkos
+        uses the same approach.
+
+  \item \textbf{Ninja:} HPX has 1000+ source files.  Ninja roughly halves
+        build time vs.\ Make.
+
+  \item \textbf{\code{DISTRIBUTED\_RUNTIME=OFF}:} Disables AGAS and
+        parcelports, $\sim$30\% fewer sources.  Hard requirement:
+        sandbox has no network.
+
+  \item \textbf{Link order:} \code{hpx\_wrap} $\to$ \code{hpx\_init} $\to$
+        \code{hpx} $\to$ \code{hpx\_core} (validated in PoC).
+        % [GROUNDED: libs/CMakeLists.txt:80 (hpx_full→libhpx), :93 (hpx_full→hpx_core)]
+        \code{hpx} is the ``full'' library built from the \code{hpx\_full}
+        CMake target (\cefile{libs/CMakeLists.txt:80}); it is \emph{not} an
+        alias for \code{hpx\_core}.
+\end{itemize}
+
+\subsubsection*{3. Dependency Chain}
+
+% [GROUNDED: cmake/HPX_SetupBoost.cmake, cmake/FindHwloc.cmake, cmake/FindAsio.cmake]
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+\textbf{Dep} & \textbf{Strategy} & \textbf{Details} \\
+\midrule
+\rowcolor{rowgray}
+Boost $\geq$1.71 & \code{\%DEP0\%} &
+  CE pre-builds Boost per compiler.  \cefile{HPX\_SetupBoost.cmake:39}
+  sets min version to 1.71.  CE ships 1.86.0.  If mismatch:
+  \cefile{line~73} emits \code{hpx\_error("Boost could not be found...")}. \\
+Asio & FetchContent &
+  \code{HPX\_WITH\_FETCH\_ASIO=ON}: header-only download via
+  \cefile{HPX\_SetupAsio.cmake}.  Zero build overhead. \\
+\rowcolor{rowgray}
+hwloc & Fallback chain &
+  \cefile{FindHwloc.cmake:12--41}: searches \code{HWLOC\_ROOT},
+  \code{pkg-config}, standard paths.
+  \textbf{(A)}~System hwloc.
+  \textbf{(B)}~CE library entry.
+  \textbf{(C)}~\code{HPX\_WITH\_HWLOC=OFF} $\to$ falls back to
+  \code{std::thread::hardware\_concurrency()}.  Fine for 1--4 cores. \\
+\bottomrule
+\end{tabularx}
+\caption{Dependency resolution with concrete fallbacks.}
+\end{table}
+
+\subsubsection*{4. Sandbox Constraints: Deep Dive}
+
+% [GROUNDED: etc/nsjail/user-execution.cfg]
+CE's execution sandbox (\cefile{etc/nsjail/user-execution.cfg}) imposes
+precise limits that shaped every design decision:
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+\textbf{Constraint} & \textbf{nsjail Value} & \textbf{HPX Implication} \\
+\midrule
+\rowcolor{rowgray}
+Memory & \code{cgroup\_mem\_max: 209715200} (200\,MiB)
+  & HPX: $\sim$2--5\,MiB/worker (task queues, TLS, scheduler).
+    4 workers: $\sim$20\,MiB.  Binary: $\sim$8--15\,MiB.
+    Total: $\sim$35\,MiB of 200\,MiB. \\
+Processes & \code{cgroup\_pids\_max: 14}
+  & HPX spawns 1 thread/core (1--4).  With main: 5--6 PIDs of 14. \\
+\rowcolor{rowgray}
+CPU & \code{cgroup\_cpu\_ms\_per\_sec: 500}
+  & 500\,ms CPU per wall-second.  Bootstrap: $\sim$50--200\,ms;
+    1M-element algo: $<$1\,s CPU. \\
+Network & No network namespace &
+  \code{NETWORKING=OFF} + \code{DISTRIBUTED\_RUNTIME=OFF} are
+  \textbf{hard requirements}.  AGAS naming and parcelports need
+  sockets. \\
+\rowcolor{rowgray}
+Filesystem & \code{/tmp}: 20\,MiB tmpfs, \code{noexec} &
+  HPX writes no temp files.  Static libs linked at compile time. \\
+File descs & \code{rlimit\_nofile: 100} &
+  HPX: $\sim$8 fds (eventfd per scheduler).  Well within 100. \\
+\rowcolor{rowgray}
+Time & Configurable ($\sim$10\,s default) &
+  Bootstrap + 1M-element algo: $<$2\,s total. \\
+\bottomrule
+\end{tabularx}
+\caption{nsjail constraints mapped to HPX resource usage.  Every limit
+  has $\geq$3$\times$ headroom.\protect\footnotemark}
+\end{table}
+\footnotetext{Values from
+  \cefile{compiler-explorer/compiler-explorer:etc/nsjail/user-execution.cfg}.
+  Verify against current CE \code{main} before submission.}
+
+\textbf{Why \code{DISTRIBUTED\_RUNTIME=OFF} is a hard requirement, not an
+optimisation:}  HPX's distributed runtime initialises AGAS (Active Global
+Address Space) and parcelport networking.  AGAS binds a TCP socket for
+the naming service; parcelports use TCP or MPI for inter-node communication.
+The \code{nsjail} sandbox provides no network namespace and no socket
+creation.  Without \code{DISTRIBUTED\_RUNTIME=OFF}, the HPX runtime would
+attempt to bind a socket, receive \code{EACCES}, and abort with
+\code{hpx::detail::throw\_exception()}.
+
+\textbf{Memory layout of a statically linked HPX binary:}
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \code{.text} (HPX runtime + user code): $\sim$4--8\,MiB
+  \item \code{.rodata} (string tables, vtables): $\sim$1--2\,MiB
+  \item \code{.data/.bss} (global state): $\sim$0.5\,MiB
+  \item Per-thread stack (default 2\,MiB each, 4 threads): $\sim$8\,MiB
+  \item Per-thread heap (task queues, caches): $\sim$2--5\,MiB each
+  \item \textbf{Total peak:} $\sim$35\,MiB of 200\,MiB budget
+\end{itemize}
+
+\subsubsection*{5. Compiler Compatibility Matrix}
+
+% [GROUNDED: .github/workflows/ — CI matrix]
+HPX's CI tests against specific compilers.  Mapped to CE's available
+compilers:
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}llcX@{}}
+\toprule
+\textbf{Compiler} & \textbf{CE Versions} & \textbf{Expected}
+  & \textbf{Notes} \\
+\midrule
+\rowcolor{rowgray}
+GCC 12   & 12.1--12.4   & \textcolor{merged}{Pass}
+  & Minimum GCC with reliable C++20 \\
+GCC 13   & 13.1--13.3   & \textcolor{merged}{Pass}
+  & Ubuntu system compiler \\
+\rowcolor{rowgray}
+GCC 14   & 14.1--14.2   & \textcolor{merged}{Pass}
+  & HPX CI primary GCC \\
+GCC 15   & 15.1         & \textcolor{merged}{Pass}
+  & Trunk builds tested \\
+\rowcolor{rowgray}
+Clang 15 & 15.0         & \textcolor{openpr}{Risk}
+  & Borderline C++20; test in W2 \\
+Clang 16 & 16.0         & \textcolor{merged}{Pass}
+  & C++20 modules support begins \\
+\rowcolor{rowgray}
+Clang 17 & 17.0         & \textcolor{merged}{Pass}
+  & PoC validated (Apple Clang 17) \\
+Clang 18--20 & 18--20   & \textcolor{merged}{Pass}
+  & HPX CI primary: Clang~20 \\
+\rowcolor{rowgray}
+GCC $\leq$11 & 4.x--11.x & \textcolor{red}{Skip}
+  & No C++20; ICEs on HPX templates \\
+Clang $\leq$14 & 3.x--14 & \textcolor{red}{Skip}
+  & Incomplete C++20 \\
+\bottomrule
+\end{tabularx}
+\caption{Compiler matrix derived from HPX CI.  ``Skip'' compilers go
+  into \code{skip\_compilers}.  ``Risk'' compilers tested in Week~2.
+  GCC~10/11 have partial C++20 support but are not tested in HPX's
+  x86 CI (only GCC~11 appears in ARM cross-compile workflows);
+  they are included in \code{skip\_compilers} via
+  \code{gcc1[01]*}.\protect\footnotemark}
+\end{table}
+\footnotetext{HPX CI uses \code{stellargroup/build\_env:\{17,19\}}
+  containers (Clang~20/21) for x86.  GCC~12+ is the practical minimum
+  for reliable C++20.  See
+  \cefile{.github/workflows/build-and-test.yml}.}
+
+\subsubsection*{6. Execution Flow}
+
+When a user selects HPX and clicks ``Run'':
+
+\begin{enumerate}[leftmargin=2em, itemsep=1pt]
+  \item Frontend sends code + compiler ID + library selection via POST
+        to \code{/api/compiler/<id>/compile}.
+  \item \cefile{options-handler.ts} resolves HPX's version and path from
+        \code{c++.amazon.properties}.
+  \item \cefile{base-compiler.ts} appends flags:
+        \code{-I .../include -L .../lib -lhpx\_wrap -lhpx\_init
+        -lhpx -lhpx\_core -pthread -DHPX\_APPLICATION\_EXPORTS -Wl,-wrap=main}
+  \item Compiler produces a statically linked ELF ($\sim$8--15\,MiB).
+  \item Binary executes inside \code{nsjail}; \code{hpx\_main.hpp}
+        bootstraps the runtime.
+  \item User code runs; output captured and displayed.
+\end{enumerate}
+
+\subsubsection*{7. Default Example}
+
+\begin{lstlisting}[language=C++, caption={Default CE example for HPX}]
+// HPX: The C++ Standard Library for Parallelism and Concurrency
+// Try changing 'par' to 'seq' to compare performance!
+
+#include <hpx/hpx_main.hpp>
+#include <hpx/algorithm.hpp>
+#include <hpx/numeric.hpp>
+#include <hpx/experimental/sandbox.hpp>
+#include <iostream>
+#include <numeric>
+#include <vector>
+
+int main()
+{
+    hpx::experimental::sandbox::describe_environment(std::cout);
+
+    constexpr std::size_t N = 1'000'000;
+    std::vector<double> data(N);
+    std::iota(data.begin(), data.end(), 1.0);
+
+    auto report = hpx::experimental::sandbox::benchmark(
+        "transform_reduce (1M doubles)",
+        [&]() {
+            volatile double r = hpx::transform_reduce(
+                hpx::execution::seq, data.begin(), data.end(),
+                0.0, std::plus<>{}, [](double x) { return x * x; });
+            (void)r;
+        },
+        [&]() {
+            volatile double r = hpx::transform_reduce(
+                hpx::execution::par, data.begin(), data.end(),
+                0.0, std::plus<>{}, [](double x) { return x * x; });
+            (void)r;
+        }
+    );
+    report.print(std::cout);
+}
+\end{lstlisting}
+
+% [GROUNDED: libs/full/include/include/hpx/experimental/sandbox.hpp:174-178,196-218]
+\textbf{API signatures used in this example:}
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \code{void describe\_environment(std::ostream\& os)}: detects
+        topology via \code{hpx::threads::create\_topology()} and prints
+        cores, PUs, NUMA domains, HPX worker count, and sandbox detection
+        (\cefile{sandbox.hpp:174--178}).
+  \item \code{benchmark\_report benchmark(string label, SeqFn\&\& seq,
+        ParFn\&\& par, size\_t iterations=5)}: runs warmup + \code{iterations}
+        passes, computes mean ms, speedup, and efficiency percentage
+        (\cefile{sandbox.hpp:196--218}).
+  \item \code{void benchmark\_report::print(std::ostream\& os)}:
+        formatted table with verdict (``Excellent / Good / Moderate / Limited /
+        No speedup'') based on efficiency thresholds
+        (\cefile{sandbox.hpp:93--120}).
+\end{itemize}
+
+\textbf{Estimated output on a 2-core CE node}
+(\code{cgroup\_cpu\_ms\_per\_sec: 500}, effectively 0.5 CPU):
+\begin{lstlisting}[style=diff, caption={Estimated CE output from default example (2-core node)}]
+=== HPX Sandbox --- Environment =========================
+  Cores:           2
+  PUs:             2
+  NUMA domains:    1
+  HPX workers:     2
+  Sandbox:         yes (constrained environment detected)
+========================================================
+
+=== HPX Sandbox --- Benchmark ==========================
+  Label:           "transform_reduce (1M doubles)"
+  Iterations:      5
+  Workers:         2
+--------------------------------------------------------
+  Sequential:      4.82 ms
+  Parallel:        2.82 ms
+--------------------------------------------------------
+  Speedup:         1.71x
+  Efficiency:      85.5%
+--------------------------------------------------------
+  Verdict:         Good scaling
+========================================================
+\end{lstlisting}
+\noindent\textit{These values are estimates; actual numbers depend on CE's
+cgroup throttling and node hardware.  They will be replaced with measured
+values during W7 validation.}
+
+\subsubsection*{8. Frontend Configuration}
+
+\begin{lstlisting}[language={}, caption={Proposed c++.amazon.properties}]
+libs.hpx.name=HPX
+libs.hpx.description=The C++ Standard Library for Parallelism and Concurrency
+libs.hpx.url=https://hpx.stellar-group.org
+libs.hpx.versions=200:110
+libs.hpx.versions.200.version=2.0.0
+libs.hpx.versions.200.path=/opt/compiler-explorer/libs/hpx/v2.0.0/include
+libs.hpx.versions.200.libpath=/opt/compiler-explorer/libs/hpx/v2.0.0/lib
+libs.hpx.versions.200.staticliblink=hpx_wrap:hpx_init:hpx:hpx_core
+libs.hpx.versions.200.liblink=pthread:dl:rt
+libs.hpx.versions.200.dependencies=boost
+libs.hpx.versions.200.options=-DHPX_APPLICATION_EXPORTS -Wl,-wrap=main
+libs.hpx.versions.110.version=1.11.0
+libs.hpx.versions.110.path=/opt/compiler-explorer/libs/hpx/v1.11.0/include
+libs.hpx.versions.110.libpath=/opt/compiler-explorer/libs/hpx/v1.11.0/lib
+libs.hpx.versions.110.staticliblink=hpx_wrap:hpx_init:hpx:hpx_core
+libs.hpx.versions.110.liblink=pthread:dl:rt
+libs.hpx.versions.110.dependencies=boost
+libs.hpx.versions.110.options=-DHPX_APPLICATION_EXPORTS -Wl,-wrap=main
+libs.hpx.example=hpx-sandbox
+\end{lstlisting}
+
+\noindent\textit{Note:} \code{liblink=pthread:dl:rt} adds system libraries
+required by \code{libhpx\_core.a} on Linux: \code{dl} for dynamic symbol
+loading (\code{dlopen}/\code{dlsym}) and \code{rt} for POSIX timers
+(\code{clock\_gettime}).  These are separate from \code{staticliblink}
+because they are shared system libraries, not HPX-provided archives.
+
+\subsubsection*{9. CMake Preset}
+
+% [GROUNDED: CMakePresets.json — godbolt-minimal preset; VERIFY line numbers before submission]
+HPX already ships a \code{godbolt-minimal} preset.  Current state
+(verbatim from \cefile{CMakePresets.json}, search for
+\code{"name": "godbolt-minimal"}):
+
+\begin{lstlisting}[language={}, caption={Current godbolt-minimal preset (HPX source, verbatim)}]
+{
+  "name": "godbolt-minimal",
+  "displayName": "Godbolt / Sandboxed Environment",
+  "description": "Minimal single-node static build optimized for
+    browser-based compilers (Compiler Explorer / Godbolt).",
+  "generator": "Ninja",
+  "binaryDir": "${sourceDir}/build/godbolt-minimal",
+  "cacheVariables": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "HPX_WITH_MALLOC": "system",
+    "HPX_WITH_NETWORKING": "OFF",
+    "HPX_WITH_TESTS": "OFF",
+    "HPX_WITH_EXAMPLES": "OFF",
+    "HPX_WITH_DOCUMENTATION": "OFF",
+    "HPX_WITH_STATIC_LINKING": "ON",
+    "HPX_WITH_FETCH_ASIO": "ON"
+  }
+}
+\end{lstlisting}
+
+PR\,\#1 will add three variables.  Proposed additions:
+
+\begin{lstlisting}[style=diff, caption={Proposed additions to godbolt-minimal (PR \#1)}]
++ "HPX_WITH_DISTRIBUTED_RUNTIME": "OFF",
++ "HPX_WITH_TOOLS": "OFF",
++ "HPX_WITH_CXX_STANDARD": "20"
+\end{lstlisting}
+
+% [GROUNDED: libs/full/init_runtime/src/hpx_init.cpp:46-62 — DISTRIBUTED_RUNTIME guards]
+\textbf{\code{HPX\_WITH\_DISTRIBUTED\_RUNTIME=OFF}:}
+Prevents AGAS from binding a TCP socket at init and disables parcelport
+registration (\cefile{hpx\_init.cpp:121--122}, guarded by
+\code{HPX\_HAVE\_DISTRIBUTED\_RUNTIME} at line~46).  Mandatory in
+\code{nsjail}'s network-isolated sandbox.  Also removes all action/component
+registration code, reducing both binary size and compile time.
+
+% [GROUNDED: CMakeLists.txt:468,2714-2717 — HPX_WITH_TOOLS]
+\textbf{\code{HPX\_WITH\_TOOLS=OFF}:}
+Disables the \cefile{tools/} subdirectory (\cefile{CMakeLists.txt:2714--2717}),
+which contains development utilities (\code{hpxdep}, \code{inspect},
+\code{hpx-top.py}, performance test scripts).  These are never used on CE.
+
+\textbf{\code{HPX\_WITH\_CXX\_STANDARD=20}:}
+Required for \code{hpx::experimental::sandbox} (uses C++20 concepts and
+\code{std::chrono} duration formatting) and matches the \code{-std=c++20}
+flag passed to user code.
+
+\subsubsection*{10. Risks and Mitigation}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{2.5cm}lX@{}}
+\toprule
+\textbf{Risk} & \textbf{P} & \textbf{Mitigation} \\
+\midrule
+\rowcolor{rowgray}
+Build $>$ 600\,s &
+  Med &
+  Ninja + \code{DISTRIBUTED\_RUNTIME=OFF} + \code{TESTS=OFF}: $\sim$30\%
+  fewer sources.  Precedent: Qt/Boost have custom timeouts. \\
+hwloc missing &
+  Low &
+  Three-level fallback: system $\to$ CE entry $\to$ \code{OFF}. \\
+\rowcolor{rowgray}
+CE review delay &
+  Med &
+  Join CE Discord during bonding.  Draft PRs in W5: 5+ weeks buffer. \\
+Compiler ICEs &
+  Med &
+  Comprehensive \code{skip\_compilers} from W2.  Known: GCC$\leq$11 ICEs. \\
+\rowcolor{rowgray}
+Link order &
+  Low &
+  Validated in PoC: \code{wrap}$\to$\code{init}$\to$\code{hpx}$\to$\code{core}. \\
+Boost mismatch &
+  Low &
+  \cefile{HPX\_SetupBoost.cmake} emits clear error if $<$1.71.
+  CE ships 1.86.0. \\
+\bottomrule
+\end{tabularx}
+\caption{Risk analysis. P = probability.}
+\end{table}
+
+% ── Milestones ────────────────────────────────────────────────────────────────
+\subsection*{Milestones and Schedule}
+
+\begin{longtable}{|c|p{2.2cm}|p{5.8cm}|p{3.5cm}|}
+\hline
+\rowcolor{rowgray}
+\textbf{Wk} & \textbf{Phase} & \textbf{Task} & \textbf{Definition of Done} \\
+\hline
+\endfirsthead
+\hline
+\rowcolor{rowgray}
+\textbf{Wk} & \textbf{Phase} & \textbf{Task} & \textbf{Definition of Done} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+B1--B2 & Community Bonding &
+  Join CE Discord.  Study \cefile{library\_builder.py}'s
+  \code{expand\_make\_arg()} and \code{build\_library()}.
+  Set up local CE.  Build HPX with \code{godbolt-minimal}.
+  Check hwloc on CE nodes.
+  & Can trace \code{expand\_make\_arg()} flow; local CE serves requests. \\
+\hline
+
+W1 & Local Setup &
+  Fork CE repos.  Add HPX \code{libraries.yaml}.
+  First build with GCC~14.  Verify Conan packaging.
+  & HPX builds via CE pipeline on GCC~14; Conan succeeds. \\
+\hline
+
+W2 & Multi-Compiler &
+  Test GCC~\{12,13,14,15\}, Clang~\{15--20\}.
+  Record times/sizes.  Build \code{skip\_compilers}.
+  \newline\textit{\textbf{Highest-risk week.}}
+  \textbf{Contingency:} If $>$2 fail, narrow to GCC~\{14,15\}
+  + Clang~\{17,20\} and expand later.
+  & Matrix complete; $\geq$6 compilers pass. \\
+\hline
+
+W3 & Dependencies &
+  Resolve hwloc (A/B/C).  Validate \code{\%DEP0\%}.
+  Test \code{FETCH\_ASIO} across compilers.
+  & All deps resolved; no manual paths. \\
+\hline
+
+W4 & Build Pipeline &
+  Finalise \code{libraries.yaml}.  Timeout mitigations.
+  Validate Conan packaging.
+  & Full YAML produces packages for all compilers. \\
+\hline
+
+W5 & E2E Validation &
+  Full pipeline: HPX $\to$ compile $\to$ execute $\to$ output.
+  \textbf{Open draft PRs.}
+  & Local CE works; drafts posted on CE Discord. \\
+\hline
+
+W6 & Draft PR Feedback &
+  Address draft PR feedback from CE Discord; begin properties
+  file skeleton.  Refine \code{skip\_compilers} based on
+  maintainer guidance.
+  & At least one CE maintainer has responded to draft PR. \\
+\hline
+
+\rowcolor{rowgray}
+MT & \textbf{Midterm} &
+  HPX on $\geq$8 compilers; draft PRs open.
+  & Midterm criteria met. \\
+\hline
+
+W7 & Frontend &
+  Write \code{c++.amazon.properties}.
+  Verify dropdown and flag resolution.
+  & HPX in dropdown; compilation succeeds from UI. \\
+\hline
+
+W8 & Example + PR\,\#1 &
+  Default example + \code{sandbox.hpp} refinements.
+  Submit PR\,\#1 to HPX.
+  & PR\,\#1 passes HPX CI; example runs. \\
+\hline
+
+W9 & Edge Cases &
+  Test: missing \code{hpx\_main.hpp}, incompatible compilers,
+  timeout, HPX+Boost conflicts.  Draft \code{CONTRIBUTING\_CE.md}.
+  & All edge cases documented. \\
+\hline
+
+W10 & Upstream PRs &
+  Submit PR\,\#2 (CE infra) and PR\,\#3 (CE main) with
+  matrix, logs, binary sizes.
+  & All 3 PRs submitted. \\
+\hline
+
+W11 & Review &
+  Address feedback.  Buffer for unexpected issues.
+  & Review comments addressed. \\
+\hline
+
+W12 & Final &
+  Final validation.  Blog post.  Maintenance docs.
+  & Blog published; docs merged. \\
+\hline
+
+\rowcolor{rowgray}
+FE & \textbf{Final Eval} &
+  All PRs submitted; HPX functional on CE; docs complete.
+  & Final criteria met. \\
+\hline
+\end{longtable}
+
+\textbf{Bonding $\to$ W1 acceleration:} The bonding period studies
+\cefile{library\_builder.py}'s \code{expand\_make\_arg()} and
+\code{build\_library()}.  This directly accelerates W1: understanding
+these functions means I write a correct YAML entry on day one, rather
+than debugging syntax misunderstandings.
+
+\subsubsection*{Gantt Chart}
+
+\definecolor{highrisk}{RGB}{220,80,80}
+
+\begin{center}
+\begin{ganttchart}[
+  hgrid, vgrid,
+  x unit=0.62cm, y unit title=0.45cm, y unit chart=0.42cm,
+  title label font=\scriptsize,
+  bar label font=\scriptsize,
+  group label font=\scriptsize\bfseries,
+  bar/.append style={fill=hpxnavy!45},
+  group/.append style={fill=hpxnavy!12},
+  milestone/.append style={fill=red!70, inner sep=2pt},
+  title height=1,
+]{1}{14}
+  \gantttitle{Bond}{2}
+  \gantttitlelist{W1,W2,W3,W4,W5,MT,W7,W8,W9,10,11,12}{1} \\
+
+  \ganttgroup{Phase 1: Build Pipeline}{1}{7} \\
+  \ganttbar{CE study + setup}{1}{2} \\
+  \ganttbar[bar/.style={fill=highrisk!50}]{Multi-compiler (\textbf{HIGH RISK})}{3}{4} \\
+  \ganttbar{Dependency resolution}{5}{5} \\
+  \ganttbar{YAML + E2E pipeline}{6}{7} \\
+
+  \ganttmilestone{Midterm Evaluation}{8} \\
+
+  \ganttgroup{Phase 2: Frontend + PRs}{9}{14} \\
+  \ganttbar{Properties + UI}{9}{9} \\
+  \ganttbar{Example + HPX PR}{10}{10} \\
+  \ganttbar{Edge cases + docs}{11}{11} \\
+  \ganttbar{Upstream PRs}{12}{12} \\
+  \ganttbar{Review iteration}{13}{13} \\
+  \ganttbar{Final validation}{14}{14} \\
+
+  \ganttmilestone{Final Evaluation}{14}
+\end{ganttchart}
+\end{center}
+
+\noindent\textit{Note:} The \colorbox{highrisk!50}{red bar} marks the
+multi-compiler week (W2--W3), the highest-risk task identified in the
+risk analysis.  Milestones (\textbf{$\blacklozenge$}) coincide with
+GSoC evaluation deadlines.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Why Me}
+
+This project requires a rare combination of skills.  I am the only applicant
+who has \textbf{already built the integration} and published a working
+proof of concept:
+
+\begin{enumerate}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{Working proof of concept:} HPX~2.0.0 compiles and executes
+        inside a local CE instance with correct assembly output
+        (Figures~\ref{fig:ce-lib}--\ref{fig:ce-asm}).  Published at
+        \href{https://github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}%
+        {GitHub}.  The hardest unknowns are resolved.
+
+  \item \textbf{10 merged HPX PRs} spanning heap-corruption fixes (Valgrind/
+        ASan diagnostics $\to$ compiler-specific build debugging), CMake
+        modernisation ($\to$ YAML and preset design), scheduler internals
+        ($\to$ runtime init understanding), and API cleanup ($\to$ C++20-clean
+        examples).  See Table~1 for the full skill-to-task mapping.
+        Four highlights:
+        \begin{itemize}[leftmargin=1.5em, itemsep=1pt, topsep=2pt]
+          \item PR \#7051 (heap-corruption fix via Valgrind/ASan) $\to$
+                diagnosing build failures across GCC/Clang versions in W2.
+          \item PRs \#7032, \#6996, \#6977, \#6976 (CMake modernisation) $\to$
+                designing \code{skip\_compilers} and per-version preset flags.
+          \item PR \#7027 (NUMA topology cleanup) $\to$ hwloc dependency
+                handling and \code{--hpx:bind} fallback strategy.
+          \item PR \#7114 (SPSC queue refactor) $\to$ understanding
+                \code{hpx\_init} bootstrap sequence and thread-pool init.
+        \end{itemize}
+
+  \item \textbf{Six root causes identified and fixed:} Not ``HPX is broken''
+        but a line-by-line audit with concrete fixes validated in the PoC.
+
+  \item \textbf{CE architecture understanding:} I have read
+        \cefile{library\_builder.py} (1652 lines),
+        \cefile{base-compiler.ts}, \cefile{options-handler.ts}, and
+        \cefile{user-execution.cfg}.  I know how \code{\%DEP0\%} expands,
+        how \code{staticliblink} becomes \code{-l} flags, and how
+        \code{nsjail}'s \code{cgroup\_mem\_max} constrains execution.
+
+  \item \textbf{Full-stack web experience:} Production Node.js/Express
+        (Fiverse) and TypeScript monorepo (SyncCanvas), CE's exact stack.
+
+  \item \textbf{Community engagement:} Active on HPX Discord and mailing list.
+        Will join CE Discord during bonding.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Future Work \& Stretch Goals}
+
+\subsubsection*{Committed post-GSoC maintenance}
+
+\begin{description}[leftmargin=1.5em, itemsep=3pt]
+  \item[Version maintenance:]
+    HPX releases twice a year.  Each release: update one YAML line,
+    one properties line, verify builds, submit PR.
+
+  \item[Example gallery:]
+    Futures/continuations (\code{hpx::async}, \code{.then()}), parallel
+    sort, \code{hpx::dataflow}, sender/receiver (P2300).
+
+  \item[Complex-library guide:]
+    Document the integration process for other compiled libraries.
+\end{description}
+
+\subsubsection*{Stretch goals (if ahead of schedule)}
+
+\begin{enumerate}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{Nightly \code{master} builds:} HEAD tracking target
+        in \code{libraries.yaml} for bleeding-edge testing.
+  \item \textbf{CMake project mode:} Template \code{CMakeLists.txt}
+        with \code{find\_package(HPX)} for multi-file examples.
+  \item \textbf{Windows / MSVC:} HPX on MSVC targets via CE's
+        Wine/cross-compilation.
+  \item \textbf{HPX-branded CE instance:} Dedicated instance with
+        extended timeouts, curated examples, and task-graph visualisation.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\subsection*{Availability}
+
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{Time:} 15--20 hours/week (175 hours total).
+  \item \textbf{Dates:} May 26 -- August 18, 2026 (12 coding weeks).
+  \item \textbf{Constraints:} Semester ends early May; no exams during GSoC.
+        GSoC is my primary focus.
+  \item \textbf{Communication:} Daily WIP pushes + dev-log;
+        weekly written update to Hartmut Kaiser and Giannis Gonidelis
+        (HPX Discord or email); bi-weekly 30-min video call
+        (proposed Thursdays 18:00 IST\,/\,12:30 UTC).
+  \item \textbf{Community:} CE Discord \code{\#library-additions}
+        (joined during bonding) + HPX Discord; milestone write-ups
+        with demo recordings.
+\end{itemize}
+
+\vfill
+\begin{center}
+\small\itshape
+PoC: \url{https://github.com/GitMasterJatin/Integrating-HPX-with-Compiler-Explorer-}\\
+Source: \url{https://github.com/GitMasterJatin}
+\end{center}
+
+\end{document}
